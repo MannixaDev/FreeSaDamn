@@ -14,6 +14,8 @@ Molten lava, falling sand, and a buried prisoner — pull the pins in the right 
 
 > **More moves = less IQ.** Solve each level in as few pulls as you can.
 
+A **level-select menu** (the **LEVELS** button) lets you jump to any level; cleared levels are marked ★ and saved in your browser.
+
 ## Levels
 
 | # | Name | Twist |
@@ -22,6 +24,8 @@ Molten lava, falling sand, and a buried prisoner — pull the pins in the right 
 | 2 | Crossfire | Lava on **both** sides |
 | 3 | Triple Lock | Three sand pins to open the tank |
 | 4 | Overhead | Lava hangs **directly above** Saddam — bury the centre before you drop it |
+| 5 | Gauntlet | Overhead lava **and** both sides |
+| 6 | Inferno | **Twin** overhead lava over three separate sand tanks |
 
 ## Features
 

@@ -58,6 +58,25 @@
     letter-spacing: 1px; transition: transform .05s, box-shadow .05s;
   }
   .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #19568f, 0 3px 8px rgba(0,0,0,.5); }
+  .btn-alt { background: linear-gradient(#8a93a8, #5d6577); box-shadow: 0 6px 0 #3a404e, 0 8px 14px rgba(0,0,0,.5); }
+  .btn-alt:active { box-shadow: 0 2px 0 #3a404e, 0 3px 8px rgba(0,0,0,.5); }
+  #levelGrid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    max-width: 460px; width: 100%;
+  }
+  .lvlCard {
+    cursor: pointer; border: none; color: #fff;
+    padding: 12px 8px; border-radius: 14px;
+    background: linear-gradient(#54b6ff, #2b86d6);
+    box-shadow: 0 5px 0 #19568f, 0 7px 12px rgba(0,0,0,.45);
+    font-family: 'Arial Black', Arial, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    transition: transform .05s, box-shadow .05s;
+  }
+  .lvlCard:active { transform: translateY(3px); box-shadow: 0 2px 0 #19568f, 0 3px 8px rgba(0,0,0,.45); }
+  .lvlCard .num { font-size: clamp(18px, 4vw, 26px); }
+  .lvlCard .nm { font-size: clamp(9px, 1.9vw, 12px); font-family: Arial; font-weight: bold; opacity: .92; }
+  .lvlCard .done { font-size: 11px; color: #b9ffcb; font-family: Arial; }
   .hidden { display: none !important; }
   #iq { font-family: Arial; font-weight: bold; font-size: clamp(13px,2.6vw,18px); color:#ffd54a; }
   #levelTag { color:#ffd54a; font-size:.8em; }
@@ -92,7 +111,16 @@
       <p>First pull the <b>gold sand pins</b> to <b>bury Saddam</b>. Then pull <b>every lava pin</b> so the
          lava pours onto the sand and <b>cools to rock</b>. Pull a lava pin too early — or before he's
          covered — and it burns him. <b>Order is everything.</b></p>
-      <button class="btn" id="playBtn">PLAY</button>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
+        <button class="btn" id="playBtn">PLAY</button>
+        <button class="btn btn-alt" id="selectBtn">LEVELS</button>
+      </div>
+    </div>
+
+    <div id="levelSelect" class="overlay hidden">
+      <h1 style="font-size:clamp(20px,5.5vw,40px)">SELECT LEVEL</h1>
+      <div id="levelGrid"></div>
+      <button class="btn btn-alt" id="backBtn">BACK</button>
     </div>
 
     <div id="endScreen" class="overlay hidden">
@@ -102,6 +130,7 @@
       <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
         <button class="btn" id="nextBtn">NEXT LEVEL</button>
         <button class="btn" id="retryBtn">TRY AGAIN</button>
+        <button class="btn btn-alt" id="endSelectBtn">LEVELS</button>
       </div>
     </div>
   </div>
@@ -189,8 +218,25 @@
   }
   function lavaCenter(){  // reservoir straight above Saddam, pours down the central tube
     rect(76,8,81,9,WALL);
+    rect(76,9,77,12,WALL); rect(80,9,81,12,WALL);   // seal walls down to the tube (no side leak)
     rect(78,10,79,18,LAVA);
     addPin(78,19,79,20,'lava');
+  }
+  // Triple sand tank with two sealed overhead tubes (for twin overhead lava).
+  function sandTankTriple(){
+    rect(56,22,57,43,WALL); rect(101,22,102,43,WALL);     // outer walls
+    rect(68,12,69,43,WALL); rect(72,12,73,43,WALL);       // tube A walls (cols 70,71)
+    rect(83,12,84,43,WALL); rect(87,12,88,43,WALL);       // tube B walls (cols 85,86)
+    rect(56,22,68,23,WALL); rect(72,22,84,23,WALL); rect(87,22,102,23,WALL); // tops
+    rect(58,24,67,42,SAND); addPin(58,43,67,44,'sand');
+    rect(74,24,82,42,SAND); addPin(74,43,82,44,'sand');
+    rect(89,24,100,42,SAND); addPin(89,43,100,44,'sand');
+  }
+  function lavaTwin(){
+    rect(68,8,73,9,WALL); rect(68,9,69,12,WALL); rect(72,9,73,12,WALL);
+    rect(70,10,71,17,LAVA); addPin(70,18,71,19,'lava');
+    rect(83,8,88,9,WALL); rect(83,9,84,12,WALL); rect(87,9,88,12,WALL);
+    rect(85,10,86,17,LAVA); addPin(85,18,86,19,'lava');
   }
 
   const LEVELS = [
@@ -202,7 +248,17 @@
     () => { baseCave(); sandTank([[58,71],[72,86],[87,100]]); lavaLeft(); lavaRight(); },
     // L4 — Overhead: lava hangs directly above Saddam — bury the centre before you drop it
     () => { baseCave(); sandTankSplit(); lavaCenter(); },
+    // L5 — Gauntlet: overhead lava AND both sides
+    () => { baseCave(); sandTankSplit(); lavaCenter(); lavaLeft(); lavaRight(); },
+    // L6 — Inferno: twin overhead lava over three sand tanks
+    () => { baseCave(); sandTankTriple(); lavaTwin(); },
   ];
+  const NAMES = ['First Cut','Crossfire','Triple Lock','Overhead','Gauntlet','Inferno'];
+
+  // completed levels (persisted)
+  let cleared = new Set();
+  try { cleared = new Set(JSON.parse(localStorage.getItem('saddam_cleared')||'[]')); } catch(e){}
+  function markCleared(n){ cleared.add(n); try{ localStorage.setItem('saddam_cleared', JSON.stringify([...cleared])); }catch(e){} }
 
   function buildLevel(){
     grid = new Uint8Array(COLS*ROWS);
@@ -312,7 +368,7 @@
     if(quietFrames>40 && saddamCapped() && !anyLava()) winGame();
   }
 
-  function winGame(){ if(state!=='play')return; state='win'; sfxWin(); showEnd(true); }
+  function winGame(){ if(state!=='play')return; state='win'; markCleared(level); sfxWin(); showEnd(true); }
   function loseGame(){ if(state!=='play')return; if(moves<1)return; state='lose'; sfxLose(); showEnd(false); }
 
   function showEnd(won){
@@ -549,6 +605,27 @@
     muted=!muted;
     document.getElementById('muteBtn').textContent = muted ? '🔈' : '🔊';
     if(!muted) sfxClick();
+  });
+
+  // ---- Level select menu ----
+  function hideOverlays(){ for(const id of ['startScreen','endScreen','levelSelect']) document.getElementById(id).classList.add('hidden'); }
+  function startLevel(n){ audio(); sfxClick(); level=n; hideOverlays(); buildLevel(); }
+  function openMenu(){
+    audio(); sfxClick();
+    const grid=document.getElementById('levelGrid'); grid.innerHTML='';
+    LEVELS.forEach((_,n)=>{
+      const b=document.createElement('button'); b.className='lvlCard';
+      b.innerHTML = `<span class="num">${n+1}</span><span class="nm">${NAMES[n]||''}</span>`+
+                    `<span class="done">${cleared.has(n)?'★ cleared':''}</span>`;
+      b.addEventListener('click', ()=>startLevel(n));
+      grid.appendChild(b);
+    });
+    hideOverlays(); document.getElementById('levelSelect').classList.remove('hidden');
+  }
+  document.getElementById('selectBtn').addEventListener('click', openMenu);
+  document.getElementById('endSelectBtn').addEventListener('click', openMenu);
+  document.getElementById('backBtn').addEventListener('click', ()=>{
+    sfxClick(); hideOverlays(); document.getElementById('startScreen').classList.remove('hidden');
   });
 
   grid=new Uint8Array(COLS*ROWS); gridNext=new Uint8Array(COLS*ROWS);
