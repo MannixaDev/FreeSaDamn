@@ -1,0 +1,10 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+
+# Node (only used for the optional local http-server)
+node_modules/
+
+# Claude Code local tooling config
+.claude/

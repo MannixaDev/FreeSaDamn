@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Can You Free Saddam?</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: #2b2b35;
+    font-family: 'Arial Black', Arial, sans-serif;
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+  }
+  #wrap { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  #stage {
+    position: relative;
+    width: min(96vw, 760px);
+    aspect-ratio: 16 / 9;
+    border-radius: 10px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.55);
+    overflow: hidden;
+    background: #6e431f;
+  }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+
+  #topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 12px;
+    background: linear-gradient(#3b4a63, #2c374b);
+    z-index: 5;
+    font-size: clamp(11px, 2.3vw, 19px);
+    letter-spacing: .5px;
+  }
+  #title { color: #fff; text-shadow: 0 2px 0 #000; }
+  #moves { color: #ff5a4d; font-size: clamp(9px, 1.8vw, 15px); }
+
+  .overlay {
+    position: absolute; inset: 0; z-index: 20;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 16px;
+    background: rgba(10,12,20,.82);
+    padding: 20px;
+  }
+  .overlay h1 { font-size: clamp(22px, 6vw, 48px); text-shadow: 0 3px 0 #000; }
+  .overlay h1.win { color: #6cff8e; }
+  .overlay h1.lose { color: #ff5a4d; }
+  .overlay p { font-size: clamp(13px, 2.6vw, 19px); max-width: 540px; line-height: 1.5; font-family: Arial; font-weight: bold; }
+  .btn {
+    cursor: pointer; border: none; padding: 14px 42px;
+    font-size: clamp(16px, 3.4vw, 26px);
+    font-family: 'Arial Black', Arial, sans-serif; color: #fff;
+    border-radius: 30px; background: linear-gradient(#54b6ff, #2b86d6);
+    box-shadow: 0 6px 0 #19568f, 0 8px 14px rgba(0,0,0,.5);
+    letter-spacing: 1px; transition: transform .05s, box-shadow .05s;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #19568f, 0 3px 8px rgba(0,0,0,.5); }
+  .hidden { display: none !important; }
+  #iq { font-family: Arial; font-weight: bold; font-size: clamp(13px,2.6vw,18px); color:#ffd54a; }
+  #levelTag { color:#ffd54a; font-size:.8em; }
+  #muteBtn {
+    position:absolute; top:36px; right:10px; z-index:6;
+    width:34px; height:34px; border:none; border-radius:50%;
+    background:rgba(0,0,0,.45); color:#fff; font-size:16px; cursor:pointer;
+    line-height:34px; text-align:center; padding:0;
+  }
+  #muteBtn:hover { background:rgba(0,0,0,.65); }
+  #hint {
+    position:absolute; bottom:6px; left:0; right:0; text-align:center;
+    font-family: Arial; font-weight:bold; font-size:clamp(10px,2.1vw,14px);
+    color:#fff; text-shadow:0 1px 3px #000; z-index:5; pointer-events:none; opacity:.92;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="topbar">
+      <span id="title">CAN YOU FREE SADDAM? <span id="levelTag">LVL 1</span></span>
+      <span id="moves">MORE MOVES = LESS IQ &nbsp;|&nbsp; MOVES: <b id="moveCount">0</b></span>
+    </div>
+
+    <canvas id="game"></canvas>
+    <button id="muteBtn" title="Sound on/off">🔊</button>
+    <div id="hint">Bury Saddam first, THEN release every lava pin so the lava cools on the sand.</div>
+
+    <div id="startScreen" class="overlay">
+      <h1>CAN YOU FREE SADDAM?</h1>
+      <p>First pull the <b>gold sand pins</b> to <b>bury Saddam</b>. Then pull <b>every lava pin</b> so the
+         lava pours onto the sand and <b>cools to rock</b>. Pull a lava pin too early — or before he's
+         covered — and it burns him. <b>Order is everything.</b></p>
+      <button class="btn" id="playBtn">PLAY</button>
+    </div>
+
+    <div id="endScreen" class="overlay hidden">
+      <h1 id="endTitle"></h1>
+      <p id="endText"></p>
+      <div id="iq"></div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
+        <button class="btn" id="nextBtn">NEXT LEVEL</button>
+        <button class="btn" id="retryBtn">TRY AGAIN</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const COLS = 160, ROWS = 90;
+  const CELL = 6;                          // render scale: 1 sim cell -> CELL px
+  canvas.width = COLS*CELL; canvas.height = ROWS*CELL;
+  const SKY = 16;                          // sky height in sim rows
+
+  const EMPTY=0, WALL=1, SAND=2, LAVA=3, SADDAM=4, PIN=5, ROCK=6;
+
+  let grid, gridNext;
+  let pins = [];
+  let saddamCells = [];
+  let moves = 0;
+  let state = 'menu';
+  let frame = 0;
+  let startFrame = -1;     // frame of first pin pull
+  let quietFrames = 0;
+  let level = 0;           // index into LEVELS
+
+  const idx = (x,y) => y*COLS + x;
+  const inB = (x,y) => x>=0 && x<COLS && y>=0 && y<ROWS;
+
+  function rect(x0,y0,x1,y1,type){
+    for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++) if (inB(x,y)) grid[idx(x,y)] = type;
+  }
+
+  function addPin(x0,y0,x1,y1,tag){
+    const cells=[];
+    for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++) if(inB(x,y)){ grid[idx(x,y)]=PIN; cells.push(idx(x,y)); }
+    const cx=(x0+x1)/2, cy=(y0+y1)/2;
+    pins.push({x0,y0,x1,y1,cx,cy,cells,tag,pulled:false});
+  }
+
+  function drawSaddam(x0,y0){ // 24 wide, 3 tall reclining figure
+    saddamCells=[];
+    for (let j=0;j<3;j++) for (let i=0;i<24;i++){
+      const x=x0+i, y=y0+j;
+      if(inB(x,y)){ grid[idx(x,y)]=SADDAM; saddamCells.push(idx(x,y)); }
+    }
+    // head
+    if(inB(x0-1,y0)){ grid[idx(x0-1,y0)]=SADDAM; saddamCells.push(idx(x0-1,y0)); }
+  }
+
+  // ---- Reusable level pieces ----
+  function baseCave(){
+    rect(0,0,1,ROWS-1,WALL); rect(COLS-2,0,COLS-1,ROWS-1,WALL); rect(0,ROWS-3,COLS-1,ROWS-1,WALL);
+    rect(50,20,51,86,WALL);   // cell left wall
+    rect(108,20,109,86,WALL); // cell right wall
+    rect(50,84,109,86,WALL);  // floor
+    drawSaddam(68,81);
+  }
+  // wide sand tank directly above Saddam, opened by the given pin splits (contiguous cover x58..100)
+  function sandTank(splits){
+    rect(56,22,102,23,WALL);  // top
+    rect(56,22,57,43,WALL);   // left wall
+    rect(101,22,102,43,WALL); // right wall
+    rect(58,24,100,42,SAND);  // sand fill (wide sheet)
+    for(const [a,b] of splits) addPin(a,43,b,44,'sand');
+  }
+  function lavaLeft(){   // chute hugging the cell's left wall
+    rect(50,12,57,13,WALL); rect(50,12,51,19,WALL); rect(56,12,57,21,WALL);
+    rect(52,14,55,30,LAVA); addPin(52,31,55,32,'lava');
+  }
+  function lavaRight(){  // chute hugging the cell's right wall
+    rect(101,12,109,13,WALL); rect(108,12,109,19,WALL);
+    rect(102,12,103,43,WALL);                 // left wall flush with the plug (no gap to leak through)
+    rect(104,14,107,30,LAVA); addPin(104,31,107,32,'lava');
+  }
+  // Two side sand tanks with a sealed central tube for an overhead lava chute.
+  function sandTankSplit(){
+    // left tank
+    rect(56,22,77,23,WALL); rect(56,22,57,43,WALL); rect(76,12,77,43,WALL);
+    rect(58,24,75,42,SAND); addPin(58,43,75,44,'sand');
+    // right tank
+    rect(80,22,102,23,WALL); rect(101,22,102,43,WALL); rect(80,12,81,43,WALL);
+    rect(82,24,100,42,SAND); addPin(82,43,100,44,'sand');
+  }
+  function lavaCenter(){  // reservoir straight above Saddam, pours down the central tube
+    rect(76,8,81,9,WALL);
+    rect(78,10,79,18,LAVA);
+    addPin(78,19,79,20,'lava');
+  }
+
+  const LEVELS = [
+    // L1 — First Cut: bury, then release one side lava
+    () => { baseCave(); sandTank([[58,79],[80,100]]); lavaRight(); },
+    // L2 — Crossfire: bury, then release lava on both sides
+    () => { baseCave(); sandTank([[58,79],[80,100]]); lavaLeft(); lavaRight(); },
+    // L3 — Triple Lock: three sand pins, lava on both sides
+    () => { baseCave(); sandTank([[58,71],[72,86],[87,100]]); lavaLeft(); lavaRight(); },
+    // L4 — Overhead: lava hangs directly above Saddam — bury the centre before you drop it
+    () => { baseCave(); sandTankSplit(); lavaCenter(); },
+  ];
+
+  function buildLevel(){
+    grid = new Uint8Array(COLS*ROWS);
+    gridNext = new Uint8Array(COLS*ROWS);
+    pins = []; saddamCells = [];
+    moves = 0; startFrame = -1; quietFrames = 0; frame = 0;
+    updateMoves();
+    document.getElementById('levelTag').textContent = 'LVL ' + (level+1);
+    LEVELS[level]();
+    state = 'play';
+  }
+
+  // ---- Pin pulling ----
+  function pullPinAt(gx, gy){
+    if (state!=='play') return;
+    let hit=null, best=99;
+    for (const p of pins){
+      if(p.pulled) continue;
+      if (gx>=p.x0-4 && gx<=p.x1+4 && gy>=p.y0-4 && gy<=p.y1+4){
+        const d=Math.abs(gx-p.cx)+Math.abs(gy-p.cy);
+        if(d<best){best=d;hit=p;}
+      }
+    }
+    if(!hit) return;
+    hit.pulled = true;
+    moves++; updateMoves();
+    if(startFrame<0) startFrame = frame;
+    for (const c of hit.cells) if(grid[c]===PIN) grid[c]=EMPTY;
+    sfxPin(); if(hit.tag==='lava') sfxLava(); else sfxSand();
+  }
+
+  function updateMoves(){ document.getElementById('moveCount').textContent = moves; }
+
+  // ---- Physics (cellular automata). Returns number of moves (activity). ----
+  function step(){
+    gridNext.set(grid);
+    let activity = 0;
+
+    for (let y=ROWS-2; y>=0; y--){
+      const ltr = (y % 2 === 0);
+      for (let k=0;k<COLS;k++){
+        const x = ltr ? k : (COLS-1-k);
+        const i = idx(x,y);
+        const t = grid[i];
+        if (t!==SAND && t!==LAVA) continue;
+        if (gridNext[i]!==t) continue;
+
+        const below = idx(x,y+1);
+        if (gridNext[below]===EMPTY){ swap(i,below,t); activity++; continue; }
+
+        const dl = (x>0)        ? idx(x-1,y+1) : -1;
+        const dr = (x<COLS-1)   ? idx(x+1,y+1) : -1;
+        const tryL = dl>=0 && gridNext[dl]===EMPTY;
+        const tryR = dr>=0 && gridNext[dr]===EMPTY;
+        if (tryL && tryR){ (Math.random()<0.5?swap(i,dl,t):swap(i,dr,t)); activity++; continue; }
+        if (tryL){ swap(i,dl,t); activity++; continue; }
+        if (tryR){ swap(i,dr,t); activity++; continue; }
+
+        if (t===LAVA){ // lava is more fluid: spread sideways
+          const sl = (x>0)?idx(x-1,y):-1;
+          const sr = (x<COLS-1)?idx(x+1,y):-1;
+          const fL = sl>=0 && gridNext[sl]===EMPTY;
+          const fR = sr>=0 && gridNext[sr]===EMPTY;
+          if (fL && fR){ (Math.random()<0.5?swap(i,sl,t):swap(i,sr,t)); activity++; continue; }
+          if (fL){ swap(i,sl,t); activity++; continue; }
+          if (fR){ swap(i,sr,t); activity++; continue; }
+        }
+      }
+    }
+
+    // Interactions: lava cools to rock where it rests against sand/rock; death on contact with Saddam.
+    for (let i=0;i<grid.length;i++){
+      if (gridNext[i]!==LAVA) continue;
+      const x=i%COLS, y=(i/COLS|0);
+      let cool=false;
+      const nb=[[1,0],[-1,0],[0,1],[0,-1]];
+      for(const [dx,dy] of nb){
+        const nx=x+dx, ny=y+dy; if(!inB(nx,ny)) continue;
+        const nt=gridNext[idx(nx,ny)];
+        if(nt===SADDAM){ loseGame(); return activity; }
+        if(nt===SAND || nt===ROCK) cool=true; // contact with sand (or already-cooled rock) solidifies it
+      }
+      if(cool && Math.random()<0.12) gridNext[i]=ROCK;
+    }
+
+    const tmp=grid; grid=gridNext; gridNext=tmp;
+    return activity;
+  }
+  function swap(a,b,t){ gridNext[b]=t; gridNext[a]=EMPTY; }
+
+  // Saddam is safe once every exposed top of his body is capped by sand/rock/wall.
+  function saddamCapped(){
+    for(const i of saddamCells){
+      const x=i%COLS, y=(i/COLS|0), a=idx(x,y-1);
+      if(grid[a]===SADDAM) continue;
+      const t=grid[a];
+      if(!(t===SAND || t===ROCK || t===WALL)) return false;
+    }
+    return true;
+  }
+
+  function anyLava(){ for(let i=0;i<grid.length;i++) if(grid[i]===LAVA) return true; return false; }
+
+  function checkWin(){
+    if(state!=='play' || moves<1 || startFrame<0) return;
+    // Win only when Saddam is buried AND every drop of lava has been released and cooled to rock.
+    if(quietFrames>40 && saddamCapped() && !anyLava()) winGame();
+  }
+
+  function winGame(){ if(state!=='play')return; state='win'; sfxWin(); showEnd(true); }
+  function loseGame(){ if(state!=='play')return; if(moves<1)return; state='lose'; sfxLose(); showEnd(false); }
+
+  function showEnd(won){
+    const es=document.getElementById('endScreen');
+    const title=document.getElementById('endTitle');
+    const text=document.getElementById('endText');
+    const iq=document.getElementById('iq');
+    const nextBtn=document.getElementById('nextBtn');
+    const retryBtn=document.getElementById('retryBtn');
+    es.classList.remove('hidden');
+    const lastLevel = level >= LEVELS.length-1;
+    if(won){
+      title.textContent = lastLevel ? 'GENIUS! 🏆' : 'FREED! 🎉'; title.className='win';
+      text.textContent = lastLevel
+        ? 'You cleared every level and kept Saddam safe from the lava. Mastermind!'
+        : 'Saddam is buried safe and the lava can’t reach him. On to the next cell!';
+      iq.textContent = `Your IQ: ${Math.max(20, 170 - moves*10)}  (moves: ${moves})`;
+      nextBtn.textContent = lastLevel ? 'PLAY AGAIN' : 'NEXT LEVEL';
+      nextBtn.style.display = ''; retryBtn.style.display = '';
+    } else {
+      title.textContent='GAME OVER 🔥'; title.className='lose';
+      text.textContent='The molten lava reached him! Bury Saddam in sand first and don’t pull a lava pin too early.';
+      iq.textContent = `Your IQ: ${Math.max(5, 60 - moves*8)}`;
+      nextBtn.style.display = 'none'; retryBtn.style.display = '';
+    }
+  }
+
+  // ---- Rendering (cartoon art pass) ----
+  const P = CELL;
+  const W = COLS*P, H = ROWS*P;
+  // cell block with a hand-painted speckle, drawn at sim coords
+  function block(x,y,base,shades){
+    const h=((x*7+y*13)&3);
+    ctx.fillStyle = shades[h] || base;
+    ctx.fillRect(x*P, y*P, P, P);
+  }
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+  function label(text,sx,sy,size,color,align){
+    ctx.font = `700 ${size}px Arial, sans-serif`;
+    ctx.textAlign = align||'center'; ctx.textBaseline='middle';
+    ctx.lineWidth = Math.max(2,size*0.18); ctx.strokeStyle='rgba(0,0,0,.75)';
+    ctx.strokeText(text, sx*P, sy*P); ctx.fillStyle=color||'#fff';
+    ctx.fillText(text, sx*P, sy*P);
+  }
+
+  const SAND_SH = ['#efce79','#e7c069','#e9c46a','#dab35a'];
+  const WALL_SH = ['#3f2a16','#48311b','#3a2614','#432d18'];
+  const ROCK_SH = ['#39343b','#2f2b31','#423a3f','#332f35'];
+
+  function drawBackground(){
+    ctx.fillStyle='#cfe9f7'; ctx.fillRect(0,0,W,SKY*P);            // sky
+    const g=ctx.createLinearGradient(0,SKY*P,0,H);
+    g.addColorStop(0,'#c89a5e'); g.addColorStop(0.5,'#9a6b3a'); g.addColorStop(1,'#6e431f');
+    ctx.fillStyle=g; ctx.fillRect(0,SKY*P,W,H-SKY*P);             // dirt
+    // horizon line of grass/dirt
+    ctx.fillStyle='#7a9e3c'; ctx.fillRect(0,SKY*P-2,W,3);
+    // faint strata + pebbles for texture
+    ctx.globalAlpha=.10; ctx.fillStyle='#000';
+    for(let y=SKY+6;y<ROWS;y+=7) ctx.fillRect(0,y*P,W,P*0.6);
+    ctx.globalAlpha=.14;
+    for(let k=0;k<70;k++){ const rx=(k*97%COLS), ry=SKY+2+(k*53%(ROWS-SKY-2)); ctx.fillRect(rx*P,ry*P,P,P); }
+    ctx.globalAlpha=1;
+  }
+
+  function drawMonster(){ // grumpy air-vent rock golem (bottom-left dirt)
+    const cx=15*P, cy=77*P, rw=9*P, rh=7*P;
+    ctx.fillStyle='#6f5d49'; roundRect(cx-rw/2,cy-rh/2,rw,rh,8); ctx.fill();
+    ctx.fillStyle='#5a4a39'; roundRect(cx-rw/2,cy+rh/2-6,rw,6,4); ctx.fill();
+    // eyes
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx-rw*0.2,cy-3,rw*0.13,0,7); ctx.arc(cx+rw*0.2,cy-3,rw*0.13,0,7); ctx.fill();
+    ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(cx-rw*0.18,cy-2,rw*0.06,0,7); ctx.arc(cx+rw*0.22,cy-2,rw*0.06,0,7); ctx.fill();
+    // angry brows
+    ctx.strokeStyle='#2a221a'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-rw*0.34,cy-8); ctx.lineTo(cx-rw*0.06,cy-4);
+                     ctx.moveTo(cx+rw*0.34,cy-8); ctx.lineTo(cx+rw*0.06,cy-4); ctx.stroke();
+    // frown
+    ctx.beginPath(); ctx.arc(cx,cy+8,rw*0.22,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
+  }
+
+  function drawFan(){ // spinning vent fan (bottom-center-left)
+    const cx=38*P, cy=78*P, r=5.5*P;
+    ctx.fillStyle='#33363d'; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill();
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(frame*0.12);
+    ctx.fillStyle='#9aa3ad';
+    for(let b=0;b<4;b++){ ctx.rotate(Math.PI/2); ctx.beginPath(); ctx.ellipse(r*0.5,0,r*0.5,r*0.22,0,0,7); ctx.fill(); }
+    ctx.restore();
+    ctx.fillStyle='#cfd6dd'; ctx.beginPath(); ctx.arc(cx,cy,r*0.18,0,7); ctx.fill();
+  }
+
+  function drawBricks(){ // "entrance hidden by bricks and rubble" cap on the sand tank
+    const x0=56,x1=98,y0=18,y1=21;
+    for(let y=y0;y<=y1;y++){ const off=((y-y0)%2)?2:0;
+      for(let x=x0-1;x<=x1;x+=4){ ctx.fillStyle='#9c4a2a'; ctx.fillRect((x+off)*P,y*P,4*P-2,P-1);
+        ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect((x+off)*P,y*P+P-2,4*P-2,2); }
+    }
+  }
+
+  function draw6ft(){
+    const x=52*P, y0=24*P, y1=43*P;
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x,y1); ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.moveTo(x,y0); ctx.lineTo(x-4,y0+7); ctx.lineTo(x+4,y0+7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x-4,y1-7); ctx.lineTo(x+4,y1-7); ctx.fill();
+    label('6ft', 48, 33.5, 15, '#fff', 'center');
+  }
+
+  function drawSaddamSprite(){
+    const bx=68*P, by=81*P, bw=24*P, bh=3.4*P;
+    // body (red prison suit)
+    ctx.fillStyle='#7d2018'; roundRect(bx-2,by-2,bw+4,bh+4,bh/2); ctx.fill();
+    ctx.fillStyle='#c0392b'; roundRect(bx,by,bw,bh,bh/2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.18)'; roundRect(bx+4,by+2,bw-8,bh*0.32,bh*0.16); ctx.fill();
+    // feet (right end)
+    ctx.fillStyle='#3a2a22'; ctx.beginPath(); ctx.arc(bx+bw+2,by+bh*0.4,P*0.9,0,7); ctx.arc(bx+bw+2,by+bh*0.8,P*0.9,0,7); ctx.fill();
+    // head (left end)
+    const hx=66*P, hy=by+bh*0.5;
+    ctx.fillStyle='#2b2b2b'; ctx.beginPath(); ctx.arc(hx,hy,P*2.1,0,7); ctx.fill();   // hair/beard
+    ctx.fillStyle='#d9a974'; ctx.beginPath(); ctx.arc(hx+P*0.3,hy-P*0.2,P*1.45,0,7); ctx.fill(); // face
+    ctx.fillStyle='#2b2b2b'; ctx.fillRect(hx-P*0.9,hy-P*1.6,P*2.3,P*0.8);             // hair top
+    ctx.fillRect(hx-P*0.2,hy+P*0.5,P*1.6,P*0.5);                                       // moustache
+    ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(hx+P*0.7,hy-P*0.3,P*0.2,0,7); ctx.fill(); // eye
+  }
+
+  function render(){
+    drawBackground();
+    drawMonster(); drawFan(); drawBricks(); draw6ft();
+
+    // grid: structure + particles
+    for (let i=0;i<grid.length;i++){
+      const t=grid[i]; if(t===EMPTY||t===SADDAM) continue;
+      const x=i%COLS, y=(i/COLS|0);
+      if(t===WALL) block(x,y,'#3f2a16',WALL_SH);
+      else if(t===SAND) block(x,y,'#e9c46a',SAND_SH);
+      else if(t===ROCK) block(x,y,'#39343b',ROCK_SH);
+      else if(t===LAVA){
+        const f=(Math.sin(i*0.7+frame*0.35)*0.5+0.5);
+        ctx.fillStyle = f>0.66?'#ffd24a' : f>0.33?'#ff7a1f':'#ef4a16';
+        ctx.fillRect(x*P,y*P,P,P);
+      }
+    }
+
+    drawSaddamSprite();
+
+    // Pins as shiny gold bolts (gentle pulse to invite a tap)
+    for(const p of pins){ if(p.pulled) continue;
+      const x=p.x0*P, y=p.y0*P, w=(p.x1-p.x0+1)*P, h=(p.y1-p.y0+1)*P;
+      const pad = 1.5 + Math.sin(frame*0.15)*0.8;
+      ctx.fillStyle='#a07800'; roundRect(x-pad-1,y-pad-1,w+2*pad+2,h+2*pad+2,h); ctx.fill();
+      ctx.fillStyle='#ffce3a'; roundRect(x-pad,y-pad,w+2*pad,h+2*pad,h); ctx.fill();
+      ctx.fillStyle='#fff3b0'; roundRect(x,y+1,w,h*0.4,h*0.2); ctx.fill();           // highlight
+      ctx.fillStyle='#ffe27a';                                                        // bolt heads
+      ctx.beginPath(); ctx.arc(x,y+h/2,h*0.7,0,7); ctx.arc(x+w,y+h/2,h*0.7,0,7); ctx.fill();
+      ctx.fillStyle='#a07800';
+      ctx.beginPath(); ctx.arc(x,y+h/2,h*0.28,0,7); ctx.arc(x+w,y+h/2,h*0.28,0,7); ctx.fill();
+    }
+
+    // Labels with leader lines (comic-ad style)
+    label('Entrance hidden by', 80, 11, 11, '#fff');
+    label('bricks and rubble', 80, 14.4, 11, '#fff');
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(122*P,70*P); ctx.lineTo(104*P,80*P); ctx.stroke(); // -> saddam
+    label('Saddam Hussein', 133, 67, 13, '#fff');
+    label('Air vent', 15, 86, 12, '#fff');
+    label('Fan', 38, 86, 12, '#fff');
+  }
+
+  // ---- Sound (Web Audio, no files) ----
+  let actx=null, muted=false;
+  function audio(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+  function tone(freq,dur,type,vol,slideTo,delay){
+    const a=audio(); if(!a||muted) return;
+    const t0=a.currentTime+(delay||0);
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type||'square'; o.frequency.setValueAtTime(freq,t0);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur);
+    g.gain.setValueAtTime(vol||0.18, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+dur);
+  }
+  function noise(dur,vol,freq,type){
+    const a=audio(); if(!a||muted) return;
+    const n=a.createBufferSource(), buf=a.createBuffer(1,Math.max(1,a.sampleRate*dur),a.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    n.buffer=buf;
+    const f=a.createBiquadFilter(); f.type=type||'bandpass'; f.frequency.value=freq||1200;
+    const g=a.createGain(); g.gain.setValueAtTime(vol||0.14,a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+dur);
+    n.connect(f).connect(g).connect(a.destination); n.start(); n.stop(a.currentTime+dur);
+  }
+  function sfxPin(){ tone(820,0.10,'square',0.22,360); noise(0.05,0.10,2500,'highpass'); }
+  function sfxSand(){ noise(0.55,0.18,1400,'bandpass'); }
+  function sfxLava(){ noise(0.7,0.16,500,'lowpass'); tone(140,0.6,'sawtooth',0.12,70); }
+  function sfxWin(){ [523,659,784,1047].forEach((f,k)=>tone(f,0.22,'triangle',0.2,null,k*0.1)); }
+  function sfxLose(){ tone(320,0.5,'sawtooth',0.25,70); noise(0.5,0.18,300,'lowpass'); }
+  function sfxClick(){ tone(560,0.06,'square',0.16); }
+
+  // ---- Loop ----
+  function tick(){
+    if(state==='play'){
+      frame++;
+      const a1=step(); const a2=(state==='play')?step():0;
+      if(a1+a2===0) quietFrames++; else quietFrames=0;
+      checkWin();
+    }
+  }
+  function loop(){ tick(); render(); requestAnimationFrame(loop); }
+
+  // ---- Input ----
+  function toGrid(cx,cy){
+    const r=canvas.getBoundingClientRect();
+    return [Math.floor((cx-r.left)/r.width*COLS), Math.floor((cy-r.top)/r.height*ROWS)];
+  }
+  canvas.addEventListener('pointerdown', e=>{ const [gx,gy]=toGrid(e.clientX,e.clientY); pullPinAt(gx,gy); });
+
+  document.getElementById('playBtn').addEventListener('click', ()=>{
+    audio(); sfxClick(); level=0;
+    document.getElementById('startScreen').classList.add('hidden'); buildLevel();
+  });
+  document.getElementById('retryBtn').addEventListener('click', ()=>{
+    sfxClick();
+    document.getElementById('endScreen').classList.add('hidden'); buildLevel();
+  });
+  document.getElementById('nextBtn').addEventListener('click', ()=>{
+    sfxClick();
+    level = (level+1) % LEVELS.length;     // wraps to 0 after the last level (PLAY AGAIN)
+    document.getElementById('endScreen').classList.add('hidden'); buildLevel();
+  });
+  document.getElementById('muteBtn').addEventListener('click', ()=>{
+    muted=!muted;
+    document.getElementById('muteBtn').textContent = muted ? '🔈' : '🔊';
+    if(!muted) sfxClick();
+  });
+
+  grid=new Uint8Array(COLS*ROWS); gridNext=new Uint8Array(COLS*ROWS);
+  loop();
+})();
+</script>
+</body>
+</html>
