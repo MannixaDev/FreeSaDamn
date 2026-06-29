@@ -1,53 +1,51 @@
-# Can You Free Saddam? 🔥
+# Can You Free Saddam? — THE BUNKER 🔥💧
 
-A browser-based "pull the pins" physics puzzle, inspired by the classic mobile-ad meme.
-Molten lava, falling sand, and a buried prisoner — pull the pins in the right order to keep him safe.
+A browser-based "pull the pins" physics puzzle, inspired by the classic mobile-ad meme —
+now a **15-level descent through a collapsing 5-floor bunker** with falling sand, molten lava,
+water, acid, levers, gates, fans and boulders.
 
 **No build step, no dependencies.** Just open `index.html` in a browser.
 
 ## How to play
 
-1. Press **PLAY**.
-2. Pull the **gold sand pins** to drop the sand and **bury Saddam**.
-3. Then pull **every lava pin** so the lava pours onto the sand and **cools to rock**.
-4. **Order is everything** — pull a lava pin too early, or before he's covered, and the molten lava burns him. Game over.
+- **Bury the prisoner in sand** so the molten **lava** can't reach him.
+- **Neutralise every drop of lava** — bury it, or **quench it with water** (water + lava → obsidian).
+- **Order is everything.** Pull a lava pin too early — or before he's covered — and he's done.
+- Some pins are **locked** (a red padlock) until you pull the right one first.
+- **Levers** open **sluice gates**; **fans** blow falling sand/fluids across the chamber;
+  **boulders** drop straight down to bury or dam; **acid** eats through sand — don't drop it on him.
+- **Water is double-edged**: great for quenching lava, but it can **drown** the prisoner.
 
-> **More moves = less IQ.** Solve each level in as few pulls as you can.
+> **More moves = less IQ.** Each level has a par; clear it in par or fewer for **★★★**.
 
-A **level-select menu** (the **LEVELS** button) lets you jump to any level; cleared levels are marked ★ and saved in your browser.
+## The bunker (5 floors · 15 levels)
 
-## Levels
+| Floor | Theme | Levels |
+|------|-------|--------|
+| 1 · Cell Block | sand + lava, ordered/locked pins | Lights Out · Chain of Command · Crossfire |
+| 2 · The Furnace | overhead lava, multi-source fire | Overflow · Twin Burners · Meltdown |
+| 3 · Waterworks | water + quench + sluice gates | First Drop · Sluice Gates · High Tide |
+| 4 · Machine Room | fans · boulders · acid trap | Conveyor · Dam It · Clockwork |
+| 5 · The Core | everything, **multiple prisoners** | Two Cells · The Gauntlet · The Core |
 
-| # | Name | Twist |
-|---|------|-------|
-| 1 | First Cut | Bury, then release one side lava |
-| 2 | Crossfire | Lava on **both** sides |
-| 3 | Triple Lock | Three sand pins to open the tank |
-| 4 | Overhead | Lava hangs **directly above** Saddam — bury the centre before you drop it |
-| 5 | Gauntlet | Overhead lava **and** both sides |
-| 6 | Inferno | **Twin** overhead lava over three separate sand tanks |
+A **bunker-map level select** lets you jump to any level; stars and best moves are saved in your browser.
 
-## Features
+## Mechanics (engine)
 
-- Custom falling-sand / lava **cellular-automata physics** (sand piles, lava flows and cools)
-- Hand-drawn cartoon art rendered on `<canvas>` — textured dirt cross-section, brick entrance, the grumpy air-vent monster, a spinning fan, and the "6ft" depth marker
-- **Web Audio** sound effects (pin pop, sand pour, lava sizzle, win/lose stings) with a mute toggle — no audio files
-- Multiple levels with a win/lose flow and a tongue-in-cheek **IQ score**
-
-## Tech
-
-Single self-contained HTML file — vanilla JavaScript, Canvas 2D, and the Web Audio API. ~160×90 simulation grid rendered at 6× scale.
+Custom falling-sand cellular automaton on a 220×130 grid (rendered 4× on `<canvas>`):
+sand piles and caps; lava flows, cools to rock on contact, and is quenched to obsidian by water;
+water seeks its level and drowns; acid dissolves terrain; boulders fall straight into dams;
+levers toggle gates; fans push fluids. Web Audio sound effects (no audio files) with a mute toggle.
 
 ## Run locally
 
 Open `index.html` directly, or serve the folder:
 
 ```sh
-npx http-server -p 8123
-# then visit http://localhost:8123
+npx http-server -p 8123     # then visit http://localhost:8123
 ```
 
 ## Play online (GitHub Pages)
 
-Enable **Settings → Pages → Deploy from branch → `main` / root**, then visit:
-`https://mannixadev.github.io/FreeSaDamn/`
+Enable **Settings → Pages → Deploy from branch → `main` / root**, then visit
+`https://mannixadev.github.io/FreeSaDamn/`.
