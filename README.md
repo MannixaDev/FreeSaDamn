@@ -8,13 +8,18 @@ water, acid, levers, gates, fans and boulders.
 
 ## How to play
 
-- **Bury the prisoner in sand** so the molten **lava** can't reach him.
-- **Neutralise every drop of lava** — bury it, or **quench it with water** (water + lava → obsidian).
-- **Order is everything.** Pull a lava pin too early — or before he's covered — and he's done.
-- Some pins are **locked** (a red padlock) until you pull the right one first.
-- **Levers** open **sluice gates**; **fans** blow falling sand/fluids across the chamber;
-  **boulders** drop straight down to bury or dam; **acid** eats through sand — don't drop it on him.
-- **Water is double-edged**: great for quenching lava, but it can **drown** the prisoner.
+**Read the pins before you pull. Don't just pull everything — most levels will kill him if you do.**
+
+- 🟡 **Gold = sand** — drop it to **bury the prisoner** so the lava can't reach him.
+- 🟠 **Orange = fire (lava)** — release it only **after** he's buried (it cools to rock on the sand).
+- 🟢 **Green = acid** — a **trap**: it drills straight down through sand and rock to kill him. **Never pull it.**
+- 🔵 **Blue = water** — **quenches lava** (→ obsidian) and is the only cure for fire you can't bury…
+  but it **drowns** a prisoner who isn't covered yet.
+- Some pins are **locked** (red padlock) until you pull the right one first — find the order.
+- **Levers** open **sluice gates**; **fans** blow falling sand across the chamber; **boulders** drop
+  straight down to bury him in rubble.
+
+> **Order is everything**, and **more moves = less IQ**. Solve each level in par or fewer for ★★★.
 
 > **More moves = less IQ.** Each level has a par; clear it in par or fewer for **★★★**.
 

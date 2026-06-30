@@ -207,6 +207,10 @@
         if(cl&&cr){ swap(i,(Math.random()<0.5?dl:dr),t); continue; }
         if(cl){ swap(i,dl,t); continue; }
         if(cr){ swap(i,dr,t); continue; }
+        if(t===ACID){                                   // acid drills straight down, eating through anything
+          const bt=gridNext[below];
+          if((bt===SAND||bt===ROCK||bt===OBSIDIAN||bt===BOULDER)&&Math.random()<0.5){ gridNext[below]=ACID; gridNext[i]=EMPTY; act++; continue; }
+        }
         if(t===LAVA||t===WATER||t===ACID){              // sideways spread (fluids)
           const reach=(t===SAND)?0:(t===LAVA?1:2);      // water/acid spread faster
           const sl=x>0?idx(x-1,y):-1, sr=x<COLS-1?idx(x+1,y):-1;
@@ -240,21 +244,19 @@
     const NB=[[1,0],[-1,0],[0,1],[0,-1]];
     for(let i=0;i<grid.length;i++){
       const t=grid[i]; if(t!==LAVA&&t!==ACID) continue;
-      const x=i%COLS, y=(i/COLS|0); let cooled=false, dissolveTarget=-1, done=false;
+      const x=i%COLS, y=(i/COLS|0); let cooled=false, done=false;
       for(const [dx,dy] of NB){
         const nx=x+dx,ny=y+dy; if(!inB(nx,ny)) continue; const ni=idx(nx,ny), nt=grid[ni];
         if(nt===SADDAM){ loseGame(); return act; }
         if(t===LAVA){
           if(nt===WATER){ grid[i]=OBSIDIAN; grid[ni]=STEAM; steamLife[ni]=14; done=true; break; }
           if(nt===SAND||nt===ROCK||nt===OBSIDIAN||nt===BOULDER) cooled=true;
-        } else { // ACID
+        } else { // ACID — neutralised only by water (terrain is handled by the drill in movement)
           if(nt===WATER){ grid[i]=EMPTY; grid[ni]=STEAM; steamLife[ni]=10; done=true; break; }
-          if(nt===SAND||nt===ROCK||nt===OBSIDIAN||nt===BOULDER) dissolveTarget=ni;
         }
       }
       if(done) continue;
       if(t===LAVA && cooled && Math.random()<0.16) grid[i]=ROCK;
-      if(t===ACID && dissolveTarget>=0 && Math.random()<0.10){ grid[dissolveTarget]=EMPTY; grid[i]=EMPTY; }
     }
     // gate auto-close
     for(const g of gates){ if(!g.closed && g.autoClose && frame-g.openedAt>g.autoClose){ g.closed=true; applyGate(g); } }
@@ -327,117 +329,104 @@
     rect(L+1,floorY-1,R-1,floorY-1,LAVA);
   }
 
-  // ===== FLOOR 1 — CELL BLOCK =====
-  L(0,'Lights Out','Sub-level 1A: the roof caved in. Bury him before anything else falls.',2,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(62,158,28,52,2);
-    lavaColumn(159,164,14,38);                         // right-wall lava trap
+  // overhead ACID trap tube (over the prisoner) — pulling it eats through the cap and kills him. NEVER pull green.
+  function acidTube(L,R){ return tube(ACID,L,R,52,26,8,'acid'); }
+  // two side sand tanks burying the prisoner, with a central slot (108..113) for the overhead trap.
+  function overheadChamber(){ chamber(54,166); drawSaddam(97,124); sandTankN(62,107,28,52,1); sandTankN(114,158,28,52,1); }
+  // wider variant leaving a right-hand room (150..178) for a water trough.
+  function overheadChamberW(){ chamber(46,178); drawSaddam(97,124); sandTankN(54,107,28,52,1); sandTankN(114,148,28,52,1); }
+
+  // ===== FLOOR 1 — CELL BLOCK (learn to read the pins) =====
+  L(0,'Lights Out','Sub-level 1A: gold = sand (safe), orange = fire, green = acid (death). Pull wisely.',3,()=>{
+    overheadChamber(); acidTube(108,113); lavaColumn(159,164,14,38);
   });
-  L(1,'Chain of Command','Sub-level 1B: the locks are wired in sequence. Find the order.',3,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    rect(62,28,62,52,WALL); rect(158,28,158,52,WALL); rect(62,28,158,28,WALL); rect(63,29,157,51,SAND);
-    const a=addPin(63,52,109,53,'sand');               // left plug
-    addPin(110,52,157,53,'sand',{requires:[a]});       // right plug — locked until A pulled (full cover, no gap)
-    lavaColumn(159,164,14,38);
+  L(1,'Chain of Command','Sub-level 1B: the left lock frees the right. Acid hangs between them.',3,()=>{
+    chamber(54,166); drawSaddam(97,124);
+    rect(62,28,62,52,WALL); rect(107,28,107,52,WALL); rect(62,28,107,28,WALL); rect(63,29,106,51,SAND);
+    const a=addPin(63,52,106,53,'sand');
+    rect(114,28,114,52,WALL); rect(158,28,158,52,WALL); rect(114,28,158,28,WALL); rect(115,29,157,51,SAND);
+    addPin(115,52,157,53,'sand',{requires:[a]});        // locked until the left plug is pulled
+    acidTube(108,113); lavaColumn(159,164,14,38);
   });
-  L(2,'Crossfire','Sub-level 1C: lava on both flanks. Cover him, then drain the fire.',4,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(62,158,28,52,3);
+  L(2,'Crossfire','Sub-level 1C: bury him, drain both fires — and leave the acid alone.',4,()=>{
+    overheadChamber(); acidTube(108,113);
     lavaColumn(56,61,14,38); lavaColumn(159,164,14,38);
   });
 
-  // ===== FLOOR 2 — THE FURNACE (overhead lava) =====
-  function overheadChamber(){
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(62,103,28,52,1);
-    sandTankN(117,158,28,52,1);
-  }
-  L(3,'Overflow','Sub-level 2A: a reservoir hangs right over his chest.',3,()=>{
-    overheadChamber();
-    tube(LAVA,108,113,52,16,8,'lava');                 // central overhead tube
+  // ===== FLOOR 2 — THE FURNACE (more fire, same poison) =====
+  L(3,'Overflow','Sub-level 2A: one big burner, one acid drum. Cover him first.',3,()=>{
+    overheadChamber(); acidTube(108,113); lavaColumn(159,164,12,44);
   });
-  L(4,'Twin Burners','Sub-level 2B: two burners over three sand tanks. Bury wide.',4,()=>{
-    chamber(46,174); drawSaddam(98,124);
-    sandTankN(52,86,28,52,1);
-    sandTankN(95,129,28,52,1);
-    sandTankN(138,172,28,52,1);
-    tube(LAVA,88,93,52,16,8,'lava'); tube(LAVA,131,136,52,16,8,'lava');
+  L(4,'Twin Burners','Sub-level 2B: fire on both flanks. Bury, then drain — never the green.',5,()=>{
+    overheadChamber(); acidTube(108,113);
+    lavaColumn(56,61,12,44); lavaColumn(159,164,12,44);
   });
-  L(5,'Meltdown','Sub-level 2C: overhead AND flanking fire. Order matters.',5,()=>{
-    overheadChamber();
-    tube(LAVA,108,113,52,16,8,'lava');
-    lavaColumn(56,61,14,38); lavaColumn(159,164,14,38);
+  L(5,'Meltdown','Sub-level 2C: locked tanks, flanking fire, acid overhead. Keep your head.',5,()=>{
+    chamber(54,166); drawSaddam(97,124);
+    // left tank opens in two locked stages; right tank locked behind them; central acid slot clear
+    rect(62,28,62,52,WALL); rect(107,28,107,52,WALL); rect(62,28,107,28,WALL); rect(63,29,106,51,SAND);
+    const a=addPin(63,52,84,53,'sand');
+    const b=addPin(85,52,106,53,'sand',{requires:[a]});
+    rect(114,28,114,52,WALL); rect(158,28,158,52,WALL); rect(114,28,158,28,WALL); rect(115,29,157,51,SAND);
+    addPin(115,52,157,53,'sand',{requires:[b]});
+    acidTube(108,113);
+    lavaColumn(56,61,12,44); lavaColumn(159,164,12,44);
   });
 
-  // ===== FLOOR 3 — WATERWORKS =====
-  L(6,'First Drop','Sub-level 3A: that fire is up on a shelf — you can’t bury it. Drown it.',3,()=>{
-    chamber(54,166); drawSaddam(92,124);
-    sandTankN(62,140,28,52,2);                          // bury the prisoner
-    lavaTrough(150,164,64);                             // 1-deep lava on a shelf — sand can't reach it
-    waterColumn(150,164,24,60);                         // water tube straight above it — the only cure
+  // ===== FLOOR 3 — WATERWORKS (water is mandatory; acid still lurks) =====
+  L(6,'First Drop','Sub-level 3A: shelved fire you can’t bury — drown it. And mind the acid.',3,()=>{
+    overheadChamberW(); acidTube(108,113);
+    lavaTrough(158,172,64); waterColumn(158,172,24,60);
   });
-  L(7,'Sluice Gates','Sub-level 3B: the coolant main is behind a sluice. Throw the lever.',4,()=>{
-    chamber(54,166); drawSaddam(92,124);
-    sandTankN(62,140,28,52,2);
-    lavaTrough(150,164,64);
-    // water sits above the shelf behind a gate; the lever opens the sluice onto the fire
-    rect(150,24,150,40,WALL); rect(164,24,164,40,WALL); rect(150,24,164,24,WALL); rect(151,25,163,38,WATER);
-    const gid=addGate(gateCells(151,39,163,40),{closed:true});
-    addPin(154,18,160,19,'lever',{kind:'lever',gate:gid});
+  L(7,'Sluice Gates','Sub-level 3B: throw the lever to flood the fire — but not the prisoner.',4,()=>{
+    overheadChamberW(); acidTube(108,113);
+    lavaTrough(158,172,64);
+    rect(158,24,158,40,WALL); rect(172,24,172,40,WALL); rect(158,24,172,24,WALL); rect(159,25,171,38,WATER);
+    const gid=addGate(gateCells(159,39,171,40),{closed:true});
+    addPin(162,18,168,19,'lever',{kind:'lever',gate:gid});
   });
   L(8,'High Tide','Sub-level 3C: bury him FIRST — open the flood early and he drowns.',4,()=>{
-    chamber(54,166); drawSaddam(88,124);
-    sandTankN(60,118,28,52,2);                          // bury the prisoner (left/centre)
-    lavaTrough(128,150,70,1,3);                         // shelf lava to the right; low LEFT wall spills water back toward him
-    waterColumn(128,150,24,66);                         // a big flood — quenches the fire, but drowns a bare prisoner
+    overheadChamberW(); acidTube(108,113);
+    lavaTrough(152,170,70,1,3);                          // shelf fire; low inner wall spills the flood back toward him
+    waterColumn(152,170,24,66);                          // a big flood — quenches it, but drowns a bare prisoner
   });
 
   // ===== FLOOR 4 — MACHINE ROOM =====
-  L(9,'Conveyor','Sub-level 4A: the intake fan blows the falling sand across to his cell.',4,()=>{
+  L(9,'Conveyor','Sub-level 4A: the intake fan blows the falling sand across to bury him.',3,()=>{
     chamber(54,166); drawSaddam(116,124);
-    // sand drops on the LEFT; a wide, strong fan blows it rightward across to bury him
-    rect(58,26,58,52,WALL); rect(102,26,102,52,WALL); rect(58,26,102,26,WALL); rect(59,27,101,51,SAND);
-    addPin(59,52,101,53,'sand');                        // full-width plug (no leak)
-    addFan(58,80,162,122,1);                            // wide rightward wind across the chamber floor
+    rect(58,26,58,52,WALL); rect(100,26,100,52,WALL); rect(58,26,100,26,WALL); rect(59,27,99,51,SAND);
+    addPin(59,52,99,53,'sand');
+    addFan(58,80,162,122,1);                             // strong rightward wind carries the sand to his cell
     lavaColumn(159,164,14,38);
   });
-  L(10,'Dam It','Sub-level 4B: no sand here — drop the boulders to bury him in rubble.',4,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    // wide BOULDER reservoir straight above Saddam (boulders fall straight → full cover)
-    rect(78,28,78,52,WALL); rect(142,28,142,52,WALL); rect(78,28,142,28,WALL); rect(79,29,141,51,BOULDER);
-    addPin(79,52,110,53,'sand'); addPin(111,52,141,53,'sand');   // contiguous full-cover plug
+  L(10,'Dam It','Sub-level 4B: no sand — drop the boulders to bury him, then drain the fire.',3,()=>{
+    chamber(54,166); drawSaddam(97,124);
+    rect(70,28,70,52,WALL); rect(150,28,150,52,WALL); rect(70,28,150,28,WALL); rect(71,29,149,51,BOULDER);
+    addPin(71,52,110,53,'sand'); addPin(111,52,149,53,'sand');   // boulders fall straight → full cover
     lavaColumn(159,164,14,38);
   });
-  L(11,'Clockwork','Sub-level 4C: green acid hangs over his chest. It eats through sand — never drop it.',4,()=>{
-    overheadChamber();
-    tube(ACID,108,113,52,16,8,'acid');                  // overhead ACID trap — pulling this kills him
-    lavaColumn(159,164,14,40);                           // the real fire to release
+  L(11,'Clockwork','Sub-level 4C: bury, drain, ignore the acid. Precision under pressure.',4,()=>{
+    overheadChamber(); acidTube(108,113); lavaColumn(56,61,12,44); lavaColumn(159,164,12,44);
   });
 
-  // ===== FLOOR 5 — THE CORE =====
-  L(12,'Two Cells','Sub-level 5A: two prisoners in two cells. Save them both.',4,()=>{
-    chamber(30,108); chamber(112,190);                  // two chambers sharing a thick mid-wall
-    rect(108,24,111,FLOORY-1,WALL);
-    drawSaddam(54,124); drawSaddam(136,124);
-    sandTankN(38,100,28,52,1);
-    sandTankN(120,182,28,52,1);
-    lavaColumn(33,38,14,38); lavaColumn(182,187,14,38);
+  // ===== FLOOR 5 — THE CORE (multi-prisoner) =====
+  L(12,'Two Cells','Sub-level 5A: two prisoners. Acid hangs over the left cell — both must live.',5,()=>{
+    chamber(28,108); drawSaddam(52,124); sandTankN(36,57,28,52,1); sandTankN(64,100,28,52,1);
+    tube(ACID,58,63,52,26,8,'acid'); lavaColumn(31,36,14,38);
+    chamber(112,192); drawSaddam(150,124); sandTankN(120,184,28,52,1); lavaColumn(186,191,14,38);
   });
-  L(13,'The Gauntlet','Sub-level 5B: everything the bunker has left to throw at you.',7,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(62,103,28,52,1);
-    sandTankN(117,158,28,52,1);
-    tube(LAVA,108,113,52,16,8,'lava');
-    lavaColumn(56,61,14,38); lavaColumn(159,164,14,38);
+  L(13,'The Gauntlet','Sub-level 5B: locks, flanking fire, shelved fire and acid. Everything.',7,()=>{
+    overheadChamberW(); acidTube(108,113);
+    lavaColumn(48,53,12,44);
+    lavaTrough(158,172,64); waterColumn(158,172,24,60);
   });
-  L(14,'The Core','Sub-level 5C: the reactor is breached. Save all three.',8,()=>{
-    chamber(20,74); chamber(83,137); chamber(146,200);
-    rect(74,24,77,FLOORY-1,WALL); rect(140,24,143,FLOORY-1,WALL);
-    drawSaddam(34,124); drawSaddam(97,124); drawSaddam(160,124);
-    sandTankN(28,68,28,52,[[30,66]]);
-    sandTankN(91,131,28,52,[[93,129]]);
-    sandTankN(154,194,28,52,[[156,192]]);
-    lavaColumn(23,28,14,38); lavaColumn(86,91,14,38); lavaColumn(149,154,14,38);
+  L(14,'The Core','Sub-level 5C: three prisoners, three drums of acid among the fire. Save them all.',8,()=>{
+    chamber(20,80); drawSaddam(40,124); sandTankN(28,45,28,52,1); sandTankN(52,74,28,52,1);
+    tube(ACID,46,51,52,26,8,'acid'); lavaColumn(23,28,14,38);
+    chamber(84,144); drawSaddam(104,124); sandTankN(92,109,28,52,1); sandTankN(116,138,28,52,1);
+    tube(ACID,110,115,52,26,8,'acid'); lavaColumn(138,143,14,38);
+    chamber(148,208); drawSaddam(168,124); sandTankN(156,173,28,52,1); sandTankN(180,202,28,52,1);
+    tube(ACID,174,179,52,26,8,'acid'); lavaColumn(151,156,14,38);
   });
 
   const FLOORS=[
