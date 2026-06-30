@@ -262,8 +262,8 @@
     for(const pr of prisoners){
       let waterAdj=0;
       for(const c of pr.cells){ const x=c%COLS,y=(c/COLS|0); for(const [dx,dy] of NB){ const nx=x+dx,ny=y+dy; if(inB(nx,ny)&&grid[idx(nx,ny)]===WATER) waterAdj++; } }
-      if(waterAdj>=Math.max(3, pr.cells.length*0.4)) pr.drown++; else pr.drown=Math.max(0,pr.drown-2);
-      if(pr.drown>200){ loseGame(); return act; }
+      if(waterAdj>=5) pr.drown++; else pr.drown=Math.max(0,pr.drown-2);
+      if(pr.drown>130){ loseGame(); return act; }
     }
     return act;
   }
@@ -319,6 +319,13 @@
   // confining chamber walls [L..R] from y24 to the floor — keeps sand/lava contained
   const FLOORY=127;
   function chamber(L,R,top){ top=top||24; rect(L,top,L+1,FLOORY-1,WALL); rect(R-1,top,R,FLOORY-1,WALL); }
+  // a 1-deep lava trough up high (sand can never reach it) — must be quenched with water.
+  // leftWall/rightWall heights let excess water spill toward the prisoner (for drown levels).
+  function lavaTrough(L,R,floorY,lw,rw){
+    rect(L,floorY,R,floorY,WALL);
+    rect(L,floorY-(lw==null?3:lw),L,floorY,WALL); rect(R,floorY-(rw==null?3:rw),R,floorY,WALL);
+    rect(L+1,floorY-1,R-1,floorY-1,LAVA);
+  }
 
   // ===== FLOOR 1 — CELL BLOCK =====
   L(0,'Lights Out','Sub-level 1A: the roof caved in. Bury him before anything else falls.',2,()=>{
@@ -363,26 +370,26 @@
   });
 
   // ===== FLOOR 3 — WATERWORKS =====
-  L(6,'First Drop','Sub-level 3A: too much fire to bury — drown it with water first.',4,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(70,150,28,52,2);
-    lavaColumn(159,164,14,44);                          // tall lava column (too much to bury)
-    waterColumn(56,63,14,40);                           // water to quench it
+  L(6,'First Drop','Sub-level 3A: that fire is up on a shelf — you can’t bury it. Drown it.',3,()=>{
+    chamber(54,166); drawSaddam(92,124);
+    sandTankN(62,140,28,52,2);                          // bury the prisoner
+    lavaTrough(150,164,64);                             // 1-deep lava on a shelf — sand can't reach it
+    waterColumn(150,164,24,60);                         // water tube straight above it — the only cure
   });
-  L(7,'Sluice Gates','Sub-level 3B: the coolant main is behind a sluice. Open it in turn.',5,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(70,150,28,52,2);
-    lavaColumn(159,164,14,44);
-    // water behind a gate; a lever opens the sluice into the chamber
-    rect(56,28,56,60,WALL); rect(66,28,66,60,WALL); rect(56,28,66,28,WALL); rect(57,29,65,54,WATER);
-    const gid=addGate(gateCells(57,55,65,56),{closed:true});
-    addPin(58,60,64,61,'lever',{kind:'lever',gate:gid});
+  L(7,'Sluice Gates','Sub-level 3B: the coolant main is behind a sluice. Throw the lever.',4,()=>{
+    chamber(54,166); drawSaddam(92,124);
+    sandTankN(62,140,28,52,2);
+    lavaTrough(150,164,64);
+    // water sits above the shelf behind a gate; the lever opens the sluice onto the fire
+    rect(150,24,150,40,WALL); rect(164,24,164,40,WALL); rect(150,24,164,24,WALL); rect(151,25,163,38,WATER);
+    const gid=addGate(gateCells(151,39,163,40),{closed:true});
+    addPin(154,18,160,19,'lever',{kind:'lever',gate:gid});
   });
-  L(8,'High Tide','Sub-level 3C: the bunker is flooding — useful, but don’t let him drown.',6,()=>{
-    chamber(54,166); drawSaddam(98,124);
-    sandTankN(70,150,28,52,2);
-    lavaColumn(159,164,14,44);
-    waterColumn(56,66,14,46);                           // lots of water (drown risk)
+  L(8,'High Tide','Sub-level 3C: bury him FIRST — open the flood early and he drowns.',4,()=>{
+    chamber(54,166); drawSaddam(88,124);
+    sandTankN(60,118,28,52,2);                          // bury the prisoner (left/centre)
+    lavaTrough(128,150,70,1,3);                         // shelf lava to the right; low LEFT wall spills water back toward him
+    waterColumn(128,150,24,66);                         // a big flood — quenches the fire, but drowns a bare prisoner
   });
 
   // ===== FLOOR 4 — MACHINE ROOM =====
